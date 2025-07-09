@@ -56,7 +56,23 @@ def generate_device_id(user_id: str) -> str:
                 result.append(chars[rand_val])
     
     return ''.join(result) + "-" + user_id
-
+    
+def send_to_dingtalk(content):
+    webhook = os.getenv("DINGTALK_WEBHOOK")
+    if not webhook:
+        print("DINGTALK_WEBHOOK not set")
+        return
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "msgtype": "text",
+        "text": {"content": content}
+    }
+    try:
+        resp = requests.post(webhook, json=data, headers=headers)
+        if resp.status_code != 200:
+            print(f"钉钉推送失败: {resp.text}")
+    except Exception as e:
+        print(f"钉钉推送异常: {e}")
 
 def generate_sign(t: str, token: str, data: str) -> str:
     """生成签名"""

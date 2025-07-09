@@ -10,7 +10,7 @@ from XianyuApis import XianyuApis
 import sys
 
 
-from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt
+from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, send_to_dingtalk
 from XianyuAgent import XianyuReplyBot
 from context_manager import ChatContextManager
 
@@ -45,7 +45,7 @@ class XianyuLive:
         # 人工接管相关配置
         self.manual_mode_conversations = set()  # 存储处于人工接管模式的会话ID
         self.manual_mode_timeout = int(os.getenv("MANUAL_MODE_TIMEOUT", "3600"))  # 人工接管超时时间，默认1小时
-        self.manual_mode_timestamps = {}  # 记录进入人工模式的时间
+        self.manual_mode_timestamps = {}  # 记录进入人工模式的时间 
         
         # 消息过期时间配置
         self.message_expire_time = int(os.getenv("MESSAGE_EXPIRE_TIME", "300000"))  # 消息过期时间，默认5分钟
@@ -366,7 +366,7 @@ class XianyuLive:
             send_user_name = message["1"]["10"]["reminderTitle"]
             send_user_id = message["1"]["10"]["senderUserId"]
             send_message = message["1"]["10"]["reminderContent"]
-            
+            send_to_dingtalk(f"【闲鱼新消息】\n用户: {send_user_name}\n内容: {send_message}")
             # 时效性验证（过滤5分钟前消息）
             if (time.time() * 1000 - create_time) > self.message_expire_time:
                 logger.debug("过期消息丢弃")
