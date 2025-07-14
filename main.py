@@ -10,8 +10,8 @@ from XianyuApis import XianyuApis
 import sys
 
 
-from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, send_to_dingtalk
-from XianyuAgent import XianyuReplyBot
+from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, send_to_dingtalk, format_xianyu_message
+# from XianyuAgent import XianyuReplyBot
 from context_manager import ChatContextManager
 
 
@@ -321,13 +321,13 @@ class XianyuLive:
                 try:
                     data = base64.b64decode(data).decode("utf-8")
                     data = json.loads(data)
-                    # logger.info(f"无需解密 message: {data}")
+                    logger.debug(f"无需解密 message: {data}")
                     return
                 except Exception as e:
                     # logger.info(f'加密数据: {data}')
                     decrypted_data = decrypt(data)
                     message = json.loads(decrypted_data)
-            except Exception as e:
+            except Exception as e:  
                 logger.error(f"消息解密失败: {e}")
                 return
 
@@ -364,22 +364,48 @@ class XianyuLive:
             # 处理聊天消息
             create_time = int(message["1"]["5"])
             send_user_name = message["1"]["10"]["reminderTitle"]
+            # 打印send_user_name
+            logger.info(f"send_user_name: {send_user_name}")
             send_user_id = message["1"]["10"]["senderUserId"]
             send_message = message["1"]["10"]["reminderContent"]
-            send_to_dingtalk(f"【闲鱼新消息】\n用户: {send_user_name}\n内容: {send_message}")
+            logger.info(f"send_message: {send_message}")
+
+            # 获取商品ID和会话ID
+            url_info = message["1"]["10"]["reminderUrl"]
+            item_id = url_info.split("itemId=")[1].split("&")[0] if "itemId=" in url_info else None
+            chat_id = message["1"]["2"].split('@')[0]
+
+            if not item_id:
+                logger.warning("无法获取商品ID")
+                return
+
+            # 获取商品信息
+            item_info = self.context_manager.get_item_info(item_id)
+            if not item_info:
+                api_result = self.xianyu.get_item_info(item_id)
+                if 'data' in api_result and 'itemDO' in api_result['data']:
+                    item_info = api_result['data']['itemDO']
+                    self.context_manager.save_item_info(item_id, item_info)
+                else:
+                    item_info = {}
+
+            # 只推送对方发给你的消息
+            if send_user_id != self.myid:
+                msg = format_xianyu_message(send_user_name, send_user_id, self.myid, item_info, send_message)
+                # send_to_dingtalk(msg)
             # 时效性验证（过滤5分钟前消息）
             if (time.time() * 1000 - create_time) > self.message_expire_time:
                 logger.debug("过期消息丢弃")
                 return
                 
             # 获取商品ID和会话ID
-            url_info = message["1"]["10"]["reminderUrl"]
-            item_id = url_info.split("itemId=")[1].split("&")[0] if "itemId=" in url_info else None
-            chat_id = message["1"]["2"].split('@')[0]
+            # url_info = message["1"]["10"]["reminderUrl"]
+            # item_id = url_info.split("itemId=")[1].split("&")[0] if "itemId=" in url_info else None
+            # chat_id = message["1"]["2"].split('@')[0]
             
-            if not item_id:
-                logger.warning("无法获取商品ID")
-                return
+            # if not item_id:
+            #     logger.warning("无法获取商品ID")
+            #     return
 
             # 检查是否为卖家（自己）发送的控制命令
             if send_user_id == self.myid:
@@ -399,54 +425,28 @@ class XianyuLive:
                 logger.info(f"卖家人工回复 (会话: {chat_id}, 商品: {item_id}): {send_message}")
                 return
             
-            logger.info(f"用户: {send_user_name} (ID: {send_user_id}), 商品: {item_id}, 会话: {chat_id}, 消息: {send_message}")
-            # 添加用户消息到上下文
-            self.context_manager.add_message_by_chat(chat_id, send_user_id, item_id, "user", send_message)
-            
-            # 如果当前会话处于人工接管模式，不进行自动回复
-            if self.is_manual_mode(chat_id):
-                logger.info(f"🔴 会话 {chat_id} 处于人工接管模式，跳过自动回复")
-                return
-            if self.is_system_message(message):
-                logger.debug("系统消息，跳过处理")
-                return
-            # 从数据库中获取商品信息，如果不存在则从API获取并保存
-            item_info = self.context_manager.get_item_info(item_id)
-            if not item_info:
-                logger.info(f"从API获取商品信息: {item_id}")
-                api_result = self.xianyu.get_item_info(item_id)
-                if 'data' in api_result and 'itemDO' in api_result['data']:
-                    item_info = api_result['data']['itemDO']
-                    # 保存商品信息到数据库
-                    self.context_manager.save_item_info(item_id, item_info)
+            # 已获得 send_user_name, send_user_id, self.myid, item_info, send_message, item_id, chat_id
+
+            item_seller_id = str(item_info.get("sellerId", "")) if item_info else ""
+
+            if send_user_id == self.myid:
+                # 是自己发的消息
+                if self.myid == item_seller_id:
+                    # 你是卖家
+                    logger.info(f"卖家人工回复 (会话: {chat_id}, 商品: {item_id}): {send_message}")
                 else:
-                    logger.warning(f"获取商品信息失败: {api_result}")
-                    return
+                    # 你是买家
+                    logger.info(f"买家人工提问 (会话: {chat_id}, 商品: {item_id}): {send_message}")
             else:
-                logger.info(f"从数据库获取商品信息: {item_id}")
-                
-            item_description = f"{item_info['desc']};当前商品售卖价格为:{str(item_info['soldPrice'])}"
-            
-            # 获取完整的对话上下文
-            context = self.context_manager.get_context_by_chat(chat_id)
-            # 生成回复
-            bot_reply = bot.generate_reply(
-                send_message,
-                item_description,
-                context=context
-            )
-            
-            # 检查是否为价格意图，如果是则增加议价次数
-            if bot.last_intent == "price":
-                self.context_manager.increment_bargain_count_by_chat(chat_id)
-                bargain_count = self.context_manager.get_bargain_count_by_chat(chat_id)
-                logger.info(f"用户 {send_user_name} 对商品 {item_id} 的议价次数: {bargain_count}")
-            
-            # 添加机器人回复到上下文
-            self.context_manager.add_message_by_chat(chat_id, self.myid, item_id, "assistant", bot_reply)
-            
-            logger.info(f"机器人回复: {bot_reply}")
-            await self.send_msg(websocket, chat_id, send_user_id, bot_reply)
+                # 对方发的消息
+                if self.myid == item_seller_id:
+                    # 你是卖家，对方是买家
+                    msg = format_xianyu_message(send_user_name, send_user_id, self.myid, item_info, send_message)
+                    send_to_dingtalk(msg)
+                else:
+                    # 你是买家，对方是卖家
+                    msg = format_xianyu_message(send_user_name, send_user_id, self.myid, item_info, send_message)
+                    send_to_dingtalk(msg)
             
         except Exception as e:
             logger.error(f"处理消息时发生错误: {str(e)}")
@@ -611,7 +611,8 @@ if __name__ == '__main__':
     load_dotenv()
     
     # 配置日志级别
-    log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
+    log_level = os.getenv("LOG_LEVEL") or "DEBUG"
+    log_level = log_level.upper()
     logger.remove()  # 移除默认handler
     logger.add(
         sys.stderr,
@@ -621,7 +622,7 @@ if __name__ == '__main__':
     logger.info(f"日志级别设置为: {log_level}")
     
     cookies_str = os.getenv("COOKIES_STR")
-    bot = XianyuReplyBot()
+    # bot = XianyuReplyBot()
     xianyuLive = XianyuLive(cookies_str)
     # 常驻进程
     asyncio.run(xianyuLive.main())

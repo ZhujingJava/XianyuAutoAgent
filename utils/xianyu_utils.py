@@ -3,6 +3,8 @@ import time
 import hashlib
 import base64
 import struct
+import os
+import requests  # 确保 requests 被导入
 from typing import Any, Dict, List
 
 
@@ -56,7 +58,7 @@ def generate_device_id(user_id: str) -> str:
                 result.append(chars[rand_val])
     
     return ''.join(result) + "-" + user_id
-    
+
 def send_to_dingtalk(content):
     webhook = os.getenv("DINGTALK_WEBHOOK")
     if not webhook:
@@ -65,7 +67,7 @@ def send_to_dingtalk(content):
     headers = {"Content-Type": "application/json"}
     data = {
         "msgtype": "text",
-        "text": {"content": content}
+        "text": {"content": f"GG {content}"}
     }
     try:
         resp = requests.post(webhook, json=data, headers=headers)
@@ -73,6 +75,36 @@ def send_to_dingtalk(content):
             print(f"钉钉推送失败: {resp.text}")
     except Exception as e:
         print(f"钉钉推送异常: {e}")
+
+
+def format_xianyu_message(send_user_name, send_user_id, myid, item_info, send_message):
+    """
+    格式化闲鱼消息推送内容，自动标注对方身份（买家/卖家/未知）
+    :param send_user_name: 发送者昵称
+    :param send_user_id: 发送者ID
+    :param myid: 自己的ID
+    :param item_info: 商品信息字典，需包含 sellerId 字段
+    :param send_message: 消息内容
+    :return: 格式化后的字符串
+    """
+    role = "对方"
+    item_seller_id = None
+    if item_info and isinstance(item_info, dict):
+        item_seller_id = str(item_info.get("sellerId", ""))
+    if item_seller_id:
+        if myid == item_seller_id:
+            # 你是卖家，对方是买家
+            if send_user_id != myid:
+                role = "买家"
+            else:
+                role = "卖家(自己)"
+        else:
+            # 你是买家，对方是卖家
+            if send_user_id != myid:
+                role = "卖家"
+            else:
+                role = "买家(自己)"
+    return f"【闲鱼新消息】\n{role}: {send_user_name}\n内容: {send_message}"
 
 def generate_sign(t: str, token: str, data: str) -> str:
     """生成签名"""
