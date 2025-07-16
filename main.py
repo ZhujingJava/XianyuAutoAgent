@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import base64
 import json
 import asyncio
@@ -21,17 +23,17 @@ def test_gotify_connection():
     gotify_token = os.getenv("GOTIFY_TOKEN")
     gotify_priority = os.getenv("GOTIFY_PRIORITY", "3")
     if not gotify_url or not gotify_token:
-        logger.error("GOTIFY_URL 或 GOTIFY_TOKEN 未设置，无法连接Gotify服务器！")
+        logger.error("GOTIFY_URL 或 GOTIFY_TOKEN 未设置，无法连接Gotify服务器!")
         return False
     try:
         # Gotify的/health接口用于健康检查
         health_url = gotify_url.rstrip('/') + '/health'
         resp = requests.get(health_url, timeout=5)
         if resp.status_code == 200:
-            logger.info("Gotify服务器连接成功！")
+            logger.info("Gotify服务器连接成功!")
             return True
         else:
-            logger.error(f"Gotify服务器健康检查失败，状态码: {resp.status_code}")
+            logger.error(f"Gotify服务器健康检查失败,状态码: {resp.status_code}")
             return False
     except Exception as e:
         logger.error(f"Gotify服务器连接异常: {e}")
