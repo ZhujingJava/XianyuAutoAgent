@@ -8,11 +8,34 @@ from loguru import logger
 from dotenv import load_dotenv
 from XianyuApis import XianyuApis
 import sys
+import requests
 
 
-from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, send_to_dingtalk, format_xianyu_message
+from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, send_to_notify, format_xianyu_message
 # from XianyuAgent import XianyuReplyBot
 from context_manager import ChatContextManager
+
+
+def test_gotify_connection():
+    gotify_url = os.getenv("GOTIFY_URL")
+    gotify_token = os.getenv("GOTIFY_TOKEN")
+    gotify_priority = os.getenv("GOTIFY_PRIORITY", "3")
+    if not gotify_url or not gotify_token:
+        logger.error("GOTIFY_URL 或 GOTIFY_TOKEN 未设置，无法连接Gotify服务器！")
+        return False
+    try:
+        # Gotify的/health接口用于健康检查
+        health_url = gotify_url.rstrip('/') + '/health'
+        resp = requests.get(health_url, timeout=5)
+        if resp.status_code == 200:
+            logger.info("Gotify服务器连接成功！")
+            return True
+        else:
+            logger.error(f"Gotify服务器健康检查失败，状态码: {resp.status_code}")
+            return False
+    except Exception as e:
+        logger.error(f"Gotify服务器连接异常: {e}")
+        return False
 
 
 class XianyuLive:
@@ -392,7 +415,7 @@ class XianyuLive:
             # 只推送对方发给你的消息
             if send_user_id != self.myid:
                 msg = format_xianyu_message(send_user_name, send_user_id, self.myid, item_info, send_message)
-                # send_to_dingtalk(msg)
+                # send_to_notify(msg)
             # 时效性验证（过滤5分钟前消息）
             if (time.time() * 1000 - create_time) > self.message_expire_time:
                 logger.debug("过期消息丢弃")
@@ -442,11 +465,11 @@ class XianyuLive:
                 if self.myid == item_seller_id:
                     # 你是卖家，对方是买家
                     msg = format_xianyu_message(send_user_name, send_user_id, self.myid, item_info, send_message)
-                    send_to_dingtalk(msg)
+                    send_to_notify(msg)
                 else:
                     # 你是买家，对方是卖家
                     msg = format_xianyu_message(send_user_name, send_user_id, self.myid, item_info, send_message)
-                    send_to_dingtalk(msg)
+                    send_to_notify(msg)
             
         except Exception as e:
             logger.error(f"处理消息时发生错误: {str(e)}")
@@ -620,6 +643,11 @@ if __name__ == '__main__':
         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
     )
     logger.info(f"日志级别设置为: {log_level}")
+
+    # Gotify连接测试
+    if not test_gotify_connection():
+        logger.error("Gotify服务器不可用，程序退出！")
+        sys.exit(1)
     
     cookies_str = os.getenv("COOKIES_STR")
     # bot = XianyuReplyBot()
