@@ -11,9 +11,11 @@ from dotenv import load_dotenv
 from XianyuApis import XianyuApis
 import sys
 import requests
+import random
+import ast
 
 
-from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, send_to_notify, format_xianyu_message
+from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, send_to_notify, format_xianyu_message, random_human_delay
 # from XianyuAgent import XianyuReplyBot
 from context_manager import ChatContextManager
 
@@ -40,6 +42,20 @@ def test_gotify_connection():
         return False
 
 
+# 设备ID持久化
+DEVICE_ID_FILE = 'data/device_id.txt'
+def get_or_create_device_id(user_id):
+    if os.path.exists(DEVICE_ID_FILE):
+        with open(DEVICE_ID_FILE, 'r') as f:
+            return f.read().strip()
+    else:
+        device_id = generate_device_id(user_id)
+        os.makedirs(os.path.dirname(DEVICE_ID_FILE), exist_ok=True)
+        with open(DEVICE_ID_FILE, 'w') as f:
+            f.write(device_id)
+        return device_id
+
+
 class XianyuLive:
     def __init__(self, cookies_str):
         self.xianyu = XianyuApis()
@@ -48,7 +64,7 @@ class XianyuLive:
         self.cookies = trans_cookies(cookies_str)
         self.xianyu.session.cookies.update(self.cookies)  # 直接使用 session.cookies.update
         self.myid = self.cookies['unb']
-        self.device_id = generate_device_id(self.myid)
+        self.device_id = get_or_create_device_id(self.myid)
         self.context_manager = ChatContextManager()
         
         # 心跳相关配置
@@ -108,6 +124,7 @@ class XianyuLive:
                 # 检查是否需要刷新token
                 if current_time - self.last_token_refresh_time >= self.token_refresh_interval:
                     logger.info("Token即将过期，准备刷新...")
+                    await random_human_delay(1, 3)
                     
                     new_token = await self.refresh_token()
                     if new_token:
@@ -308,6 +325,7 @@ class XianyuLive:
     async def handle_message(self, message_data, websocket):
         """处理所有类型的消息"""
         try:
+            await random_human_delay(1, 3)
 
             try:
                 message = message_data
@@ -479,6 +497,7 @@ class XianyuLive:
 
     async def send_heartbeat(self, ws):
         """发送心跳包并等待响应"""
+        await random_human_delay(1, 3)
         try:
             heartbeat_mid = generate_mid()
             heartbeat_msg = {
@@ -549,6 +568,7 @@ class XianyuLive:
                     "Accept-Encoding": "gzip, deflate, br, zstd",
                     "Accept-Language": "zh-CN,zh;q=0.9",
                 }
+                await random_human_delay(1, 3)
 
                 async with websockets.connect(self.base_url, extra_headers=headers) as websocket:
                     self.ws = websocket

@@ -6,6 +6,8 @@ import struct
 import os
 import requests  # 确保 requests 被导入
 from typing import Any, Dict, List
+import random
+import asyncio
 
 
 def trans_cookies(cookies_str: str) -> Dict[str, str]:
@@ -409,3 +411,9 @@ def decrypt(data: str) -> str:
                 
     except Exception as e:
         return json.dumps({"error": f"Decrypt failed: {str(e)}", "raw_data": data})
+
+
+def random_human_delay(min_sec=1, max_sec=3):
+    """模拟人类操作的随机延迟"""
+    return asyncio.sleep(random.uniform(min_sec, max_sec))
+# 使用示例：await random_human_delay() # 在API请求、消息处理、心跳等前调用
