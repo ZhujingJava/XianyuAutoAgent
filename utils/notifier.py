@@ -3,7 +3,7 @@ import requests
 
 class Notifier:
     def __init__(self):
-        self.mode = os.getenv("NOTIFY_MODE", "gotify")  # gotify/dingtalk/ntfy/...
+        self.mode = os.getenv("NOTIFY_MODE", "ntfy")  # gotify/dingtalk/ntfy/...
 
     def send(self, content, title=None, priority=None):
         if self.mode == "gotify":
