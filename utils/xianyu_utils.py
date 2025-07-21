@@ -78,34 +78,7 @@ def generate_device_id(user_id: str) -> str:
 #     except Exception as e:
 #         print(f"钉钉推送异常: {e}")
 
-def send_to_notify(content):
-    notify_url = os.getenv("GOTIFY_URL")         # 例如 http://your.gotify.server
-    token = os.getenv("GOTIFY_TOKEN")            # Gotify 应用 token
-    title = os.getenv("GOTIFY_TITLE", "闲鱼通知")     # 默认标题
-    priority = int(os.getenv("GOTIFY_PRIORITY", "3"))  # 默认优先级为3
-
-    if not notify_url or not token:
-        print("GOTIFY_URL or GOTIFY_TOKEN not set")
-        return
-
-    # Gotify 推送消息的正确 API 路径
-    api_url = notify_url.rstrip('/') + f"/message?token={token}"
-
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "title": title,
-        "message": content,
-        "priority": priority
-    }
-
-    try:
-        resp = requests.post(api_url, json=payload, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            print("✅ Notify 推送成功")
-        else:
-            print(f"❌ Notify 推送失败: {resp.status_code} - {resp.text}")
-    except Exception as e:
-        print(f"❌ Notify 推送异常: {e}")
+# 删除send_to_notify函数，推送统一用Notifier
 
 def format_xianyu_message(send_user_name, send_user_id, myid, item_info, send_message):
     """

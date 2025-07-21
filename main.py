@@ -15,9 +15,10 @@ import random
 import ast
 
 
-from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, send_to_notify, format_xianyu_message, random_human_delay
+from utils.xianyu_utils import generate_mid, generate_uuid, trans_cookies, generate_device_id, decrypt, format_xianyu_message, random_human_delay
 # from XianyuAgent import XianyuReplyBot
 from context_manager import ChatContextManager
+from utils.notifier import Notifier
 
 
 def test_gotify_connection():
@@ -66,6 +67,7 @@ class XianyuLive:
         self.myid = self.cookies['unb']
         self.device_id = get_or_create_device_id(self.myid)
         self.context_manager = ChatContextManager()
+        self.notifier = Notifier()
         
         # 心跳相关配置
         self.heartbeat_interval = int(os.getenv("HEARTBEAT_INTERVAL", "15"))  # 心跳间隔，默认15秒
@@ -124,8 +126,7 @@ class XianyuLive:
                 # 检查是否需要刷新token
                 if current_time - self.last_token_refresh_time >= self.token_refresh_interval:
                     logger.info("Token即将过期，准备刷新...")
-                    await random_human_delay(1, 3)
-                    
+                    await random_human_delay(1, 3)                    
                     new_token = await self.refresh_token()
                     if new_token:
                         logger.info("Token刷新成功，准备重新建立连接...")
@@ -435,7 +436,7 @@ class XianyuLive:
             # 只推送对方发给你的消息
             if send_user_id != self.myid:
                 msg = format_xianyu_message(send_user_name, send_user_id, self.myid, item_info, send_message)
-                # send_to_notify(msg)
+                # self.notifier.send(msg, title="闲鱼新消息")
             # 时效性验证（过滤5分钟前消息）
             if (time.time() * 1000 - create_time) > self.message_expire_time:
                 logger.debug("过期消息丢弃")
@@ -485,11 +486,11 @@ class XianyuLive:
                 if self.myid == item_seller_id:
                     # 你是卖家，对方是买家
                     msg = format_xianyu_message(send_user_name, send_user_id, self.myid, item_info, send_message)
-                    send_to_notify(msg)
+                    self.notifier.send(msg, title="闲鱼新消息")
                 else:
                     # 你是买家，对方是卖家
                     msg = format_xianyu_message(send_user_name, send_user_id, self.myid, item_info, send_message)
-                    send_to_notify(msg)
+                    self.notifier.send(msg, title="闲鱼新消息")
             
         except Exception as e:
             logger.error(f"处理消息时发生错误: {str(e)}")
